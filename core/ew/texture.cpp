@@ -24,6 +24,7 @@ namespace ew {
 	}
 	unsigned int loadTexture(const char* filePath, int wrapMode, int magFilter, int minFilter, bool mipmap) {
 		int width, height, numComponents;
+		stbi_set_flip_vertically_on_load(true);
 		unsigned char* data = stbi_load(filePath, &width, &height, &numComponents, 0);
 		if (data == NULL) {
 			printf("Failed to load image %s", filePath);
