@@ -8,6 +8,7 @@
 #include <ew/transform.h>
 #include <ew/cameraController.h>
 #include <ew/texture.h>
+#include <ns/framebuffer.h>
 
 #include <GLFW/glfw3.h>
 #include <imgui.h>
@@ -35,11 +36,12 @@ struct Material {
 }material;
 
 int main() {
-	GLFWwindow* window = initWindow("Assignment 0", screenWidth, screenHeight);
+	GLFWwindow* window = initWindow("Assignment 1", screenWidth, screenHeight);
 	glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
 
 	GLuint rockTexture = ew::loadTexture("assets/Rock_Color.jpg");
 	ew::Shader shader = ew::Shader("assets/lit.vert", "assets/lit.frag");
+	ew::Shader postProcessShader = ew::Shader("assets/postProcess.vert", "assets/postProcess.frag");
 	ew::Model monkeyModel = ew::Model("assets/suzanne.obj");
 	ew::Transform monkeyTransform;
 	
@@ -47,6 +49,15 @@ int main() {
 	camera.target = glm::vec3(0.0f, 0.0f, 0.0f); //Look at center of the scene
 	camera.aspectRatio = (float)screenWidth / screenHeight;
 	camera.fov = 60.0f; //Vertical field of view, in degrees
+
+	ns::Framebuffer framebuffer = ns::createFramebuffer(screenWidth, screenHeight, GL_RGB);
+
+	unsigned int dummyVAO;
+	glCreateVertexArrays(1, &dummyVAO);
+
+	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+		printf("ERROR::FRAMEBUFFER:: Framebuffer is not complete!");
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_BACK); //Back face culling
@@ -60,6 +71,7 @@ int main() {
 		prevFrameTime = time;
 
 		//RENDER
+		glBindFramebuffer(GL_FRAMEBUFFER, framebuffer.fbo);
 		glClearColor(0.6f,0.8f,0.92f,1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -82,6 +94,15 @@ int main() {
 		shader.setFloat("_Material.Ks", material.Ks);
 		shader.setFloat("_Material.Shininess", material.Shininess);
 		monkeyModel.draw(); //Draws the monkey model using current shader
+
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		glClearColor(0.6f, 0.8f, 0.92f, 1.0f);
+		glClear(GL_COLOR_BUFFER_BIT);
+
+		postProcessShader.use();
+		glBindTextureUnit(0, framebuffer.colorBuffer[0]);
+		glBindVertexArray(dummyVAO);
+		glDrawArrays(GL_TRIANGLES, 0, 3);
 
 		drawUI();
 
