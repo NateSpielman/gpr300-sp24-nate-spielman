@@ -1,5 +1,6 @@
 #include "framebuffer.h"
 #include "../ew/external/glad.h"
+#include <stdio.h>
 
 namespace ns {
 	Framebuffer createFramebuffer(unsigned int width, unsigned int height, int colorFormat) {
@@ -21,6 +22,10 @@ namespace ns {
 		glBindRenderbuffer(GL_RENDERBUFFER, framebuffer.depthBuffer);
 		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);
 		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, framebuffer.depthBuffer);
+
+		if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+			printf("ERROR::FRAMEBUFFER:: Framebuffer is not complete!");
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 		return framebuffer;
 	}
