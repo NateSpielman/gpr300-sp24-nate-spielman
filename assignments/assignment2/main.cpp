@@ -63,7 +63,7 @@ int main() {
 
 	ew::Mesh planeMesh = ew::Mesh(ew::createPlane(10, 10, 5));
 	ew::Transform planeTransform;
-	planeTransform.position = glm::vec3(0.0f, -1.0f, 0.0f);
+	planeTransform.position = glm::vec3(0.0f, -2.0f, 0.0f);
 	
 	//Main Camera
 	camera.position = glm::vec3(0.0f, 0.0f, 5.0f);
@@ -74,7 +74,7 @@ int main() {
 	//Shadow Camera
 	shadowCamera.target = glm::vec3(0.0f, 0.0f, 0.0f);
 	shadowCamera.orthographic = true;
-	shadowCamera.orthoHeight = 10.0f;
+	shadowCamera.orthoHeight = 15.0f;
 	shadowCamera.nearPlane = 0.01f;
 	shadowCamera.farPlane = 20.0f;
 	shadowCamera.aspectRatio = 1.0f;
@@ -99,7 +99,6 @@ int main() {
 
 		//RENDER
 		//Shadow Map
-		glCullFace(GL_FRONT);
 		glBindFramebuffer(GL_FRAMEBUFFER, shadowMap.fbo);
 		glViewport(0, 0, shadowMapWidth, shadowMapHeight);
 		glClear(GL_DEPTH_BUFFER_BIT);
@@ -113,7 +112,6 @@ int main() {
 		planeMesh.draw();
 
 		//Offscreen Framebuffer
-		glCullFace(GL_BACK);
 		glBindFramebuffer(GL_FRAMEBUFFER, framebuffer.fbo);
 		glViewport(0, 0, screenWidth, screenHeight);
 		glClearColor(0.6f,0.8f,0.92f,1.0f);
@@ -125,14 +123,17 @@ int main() {
 		//Rotate model around Y axis
 		monkeyTransform.rotation = glm::rotate(monkeyTransform.rotation, deltaTime, glm::vec3(0.0, 1.0, 0.0));
 
-		//Bind rock texture to texture unit 0 
+		//Bind textures to texture units
 		glBindTextureUnit(0, rockTexture);
+		glBindTextureUnit(1, shadowMap.depthMap);
 
 		shader.use();
 		shader.setInt("_MainTex", 0); //Make "_MainTex" sampler2D sample from the 2D texture bound to unit 0
 		shader.setMat4("_Model", monkeyTransform.modelMatrix());
 		shader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
 		shader.setVec3("_EyePos", camera.position);
+		shader.setMat4("_LightViewProj", shadowCamera.projectionMatrix() * shadowCamera.viewMatrix());
+		shader.setInt("_ShadowMap", 1);
 		//Light
 		shader.setVec3("_Light.LightDirection", light.lightDirection);
 		shader.setVec3("_Light.LightColor", light.lightColor);

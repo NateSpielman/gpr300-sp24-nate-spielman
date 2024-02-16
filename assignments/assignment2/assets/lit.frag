@@ -7,9 +7,6 @@ in Surface{
 	vec2 TexCoord;
 }fs_in;
 
-uniform sampler2D _MainTex; //2D texture sampler
-uniform vec3 _EyePos;
-
 struct Light{
 	vec3 LightDirection;
 	vec3 LightColor;
@@ -25,6 +22,22 @@ struct Material{
 };
 uniform Material _Material;
 
+uniform sampler2D _MainTex; //2D texture sampler
+uniform vec3 _EyePos;
+in vec4 LightSpacePos;
+uniform sampler2D _ShadowMap;
+
+float calcShadow(sampler2D shadowMap, vec4 lightSpacePos){
+	//Homogeneous Clip space to NDC [-w,w] to [-1,1]
+    vec3 sampleCoord = lightSpacePos.xyz / lightSpacePos.w;
+    //Convert from [-1,1] to [0,1]
+    sampleCoord = sampleCoord * 0.5 + 0.5;
+	float myDepth = sampleCoord.z; 
+	float shadowMapDepth = texture(shadowMap, sampleCoord.xy).r;
+	//step(a,b) returns 1.0 if a >= b, 0.0 otherwise
+	return step(shadowMapDepth,myDepth);
+}
+
 void main(){
 	//Make sure fragment normal is still length 1 after interpolation.
 	vec3 normal = normalize(fs_in.WorldNormal);
@@ -38,6 +51,11 @@ void main(){
 	float specularFactor = pow(max(dot(normal,h),0.0),_Material.Shininess);
 	//Combination of specular and diffuse reflection
 	vec3 lightColor = (_Material.Kd * diffuseFactor + _Material.Ks * specularFactor) * _Light.LightColor;
+
+	//shadow
+	float shadow = calcShadow(_ShadowMap, LightSpacePos);
+	lightColor *= 1.0 - shadow;
+
 	//Add some ambient light
 	lightColor+=_Light.AmbientColor * _Material.Ka;
 	vec3 objectColor = texture(_MainTex,fs_in.TexCoord).rgb;
