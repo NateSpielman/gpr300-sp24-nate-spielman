@@ -14,7 +14,7 @@ namespace ns {
 		glGenTextures(1, &shadowMap.depthMap);
 		glBindTexture(GL_TEXTURE_2D, shadowMap.depthMap);
 		//16 bit depth values, 2k resolution
-		glTexStorage2D(GL_TEXTURE_2D, 1, GL_DEPTH_COMPONENT16, 2048, 2048);
+		glTexStorage2D(GL_TEXTURE_2D, 1, GL_DEPTH_COMPONENT16, width, height);
 
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);

@@ -27,8 +27,15 @@ int screenHeight = 720;
 float prevFrameTime;
 float deltaTime;
 
+//Camera
 ew::Camera camera;
 ew::CameraController cameraController;
+ew::Camera shadowCamera;
+
+//Shadow Map Variables
+int shadowMapWidth = 2048;
+int shadowMapHeight = 2048;
+ns::ShadowMap shadowMap;
 
 struct Material {
 	float Ka = 1.0;
@@ -37,27 +44,44 @@ struct Material {
 	float Shininess = 128;
 }material;
 
+struct Light {
+	glm::vec3 lightDirection = glm::vec3(0.0f, -1.0f, 0.0f); //Light pointing straight down
+	glm::vec3 lightColor = glm::vec3(1.0); //White light
+	glm::vec3 ambientColor = glm::vec3(0.3, 0.4, 0.46);
+}light;
+
 int main() {
 	GLFWwindow* window = initWindow("Assignment 2", screenWidth, screenHeight);
 	glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
 
 	GLuint rockTexture = ew::loadTexture("assets/Rock_Color.jpg");
 	ew::Shader shader = ew::Shader("assets/lit.vert", "assets/lit.frag");
+	ew::Shader postProcessShader = ew::Shader("assets/postProcess.vert", "assets/postProcess.frag");
 	ew::Shader depthOnlyShader = ew::Shader("assets/depthOnly.vert", "assets/depthOnly.frag");
 	ew::Model monkeyModel = ew::Model("assets/suzanne.obj");
 	ew::Transform monkeyTransform;
 
 	ew::Mesh planeMesh = ew::Mesh(ew::createPlane(10, 10, 5));
 	ew::Transform planeTransform;
-	planeTransform.position = glm::vec3(0.0f, -3.0f, 0.0f);
+	planeTransform.position = glm::vec3(0.0f, -1.0f, 0.0f);
 	
+	//Main Camera
 	camera.position = glm::vec3(0.0f, 0.0f, 5.0f);
 	camera.target = glm::vec3(0.0f, 0.0f, 0.0f); //Look at center of the scene
 	camera.aspectRatio = (float)screenWidth / screenHeight;
 	camera.fov = 60.0f; //Vertical field of view, in degrees
 
+	//Shadow Camera
+	shadowCamera.target = glm::vec3(0.0f, 0.0f, 0.0f);
+	shadowCamera.orthographic = true;
+	shadowCamera.orthoHeight = 10.0f;
+	shadowCamera.nearPlane = 0.01f;
+	shadowCamera.farPlane = 20.0f;
+	shadowCamera.aspectRatio = 1.0f;
+
+	//Create Framebuffer and shadow map
 	ns::Framebuffer framebuffer = ns::createFramebuffer(screenWidth, screenHeight, GL_RGB);
-	ns::ShadowMap shadowMap = ns::createShadowMap(screenWidth, screenHeight);
+	shadowMap = ns::createShadowMap(shadowMapWidth, shadowMapHeight);
 
 	unsigned int dummyVAO;
 	glCreateVertexArrays(1, &dummyVAO);
@@ -74,6 +98,24 @@ int main() {
 		prevFrameTime = time;
 
 		//RENDER
+		//Shadow Map
+		glCullFace(GL_FRONT);
+		glBindFramebuffer(GL_FRAMEBUFFER, shadowMap.fbo);
+		glViewport(0, 0, shadowMapWidth, shadowMapHeight);
+		glClear(GL_DEPTH_BUFFER_BIT);
+
+		shadowCamera.position = (shadowCamera.target - glm::normalize(light.lightDirection)) * 5.0f;
+		depthOnlyShader.use();
+		depthOnlyShader.setMat4("_ViewProjection", shadowCamera.projectionMatrix() * shadowCamera.viewMatrix());
+		depthOnlyShader.setMat4("_Model", monkeyTransform.modelMatrix());
+		monkeyModel.draw();
+		depthOnlyShader.setMat4("_Model", planeTransform.modelMatrix());
+		planeMesh.draw();
+
+		//Offscreen Framebuffer
+		glCullFace(GL_BACK);
+		glBindFramebuffer(GL_FRAMEBUFFER, framebuffer.fbo);
+		glViewport(0, 0, screenWidth, screenHeight);
 		glClearColor(0.6f,0.8f,0.92f,1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -91,6 +133,11 @@ int main() {
 		shader.setMat4("_Model", monkeyTransform.modelMatrix());
 		shader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
 		shader.setVec3("_EyePos", camera.position);
+		//Light
+		shader.setVec3("_Light.LightDirection", light.lightDirection);
+		shader.setVec3("_Light.LightColor", light.lightColor);
+		shader.setVec3("_Light.AmbientColor", light.ambientColor);
+		//Material 
 		shader.setFloat("_Material.Ka", material.Ka);
 		shader.setFloat("_Material.Kd", material.Kd);
 		shader.setFloat("_Material.Ks", material.Ks);
@@ -99,6 +146,14 @@ int main() {
 
 		shader.setMat4("_Model", planeTransform.modelMatrix());
 		planeMesh.draw();
+
+		//Scene
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		postProcessShader.use();
+		glBindTextureUnit(0, framebuffer.colorBuffer[0]);
+		glBindVertexArray(dummyVAO);
+		glDrawArrays(GL_TRIANGLES, 0, 3);
 
 		drawUI();
 
@@ -128,12 +183,13 @@ void drawUI() {
 		ImGui::SliderFloat("SpecularK", &material.Ks, 0.0f, 1.0f);
 		ImGui::SliderFloat("Shininess", &material.Shininess, 2.0f, 1024.0f);
 	}
+	ImGui::End();
 
+	ImGui::Begin("Shadow Map");
 	ImGui::BeginChild("Shadow Map");
-	//ImVec2 windowSize = ImGui::GetWindowSize();
-	//ImGui::Image((ImTextureID)shadowMap, windowSize, ImVec2(0, 1), ImVec2(1, 0));
+	ImVec2 windowSize = ImGui::GetWindowSize();
+	ImGui::Image((ImTextureID)shadowMap.depthMap, windowSize, ImVec2(0, 1), ImVec2(1, 0));
 	ImGui::EndChild();
-
 	ImGui::End();
 
 	ImGui::Render();
