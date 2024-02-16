@@ -10,6 +10,7 @@
 #include <ew/texture.h>
 #include <ew/procGen.h>
 #include <ns/framebuffer.h>
+#include <ns/shadowMap.h>
 
 #include <GLFW/glfw3.h>
 #include <imgui.h>
@@ -42,6 +43,7 @@ int main() {
 
 	GLuint rockTexture = ew::loadTexture("assets/Rock_Color.jpg");
 	ew::Shader shader = ew::Shader("assets/lit.vert", "assets/lit.frag");
+	ew::Shader depthOnlyShader = ew::Shader("assets/depthOnly.vert", "assets/depthOnly.frag");
 	ew::Model monkeyModel = ew::Model("assets/suzanne.obj");
 	ew::Transform monkeyTransform;
 
@@ -55,6 +57,7 @@ int main() {
 	camera.fov = 60.0f; //Vertical field of view, in degrees
 
 	ns::Framebuffer framebuffer = ns::createFramebuffer(screenWidth, screenHeight, GL_RGB);
+	ns::ShadowMap shadowMap = ns::createShadowMap(screenWidth, screenHeight);
 
 	unsigned int dummyVAO;
 	glCreateVertexArrays(1, &dummyVAO);
@@ -125,6 +128,12 @@ void drawUI() {
 		ImGui::SliderFloat("SpecularK", &material.Ks, 0.0f, 1.0f);
 		ImGui::SliderFloat("Shininess", &material.Shininess, 2.0f, 1024.0f);
 	}
+
+	ImGui::BeginChild("Shadow Map");
+	//ImVec2 windowSize = ImGui::GetWindowSize();
+	//ImGui::Image((ImTextureID)shadowMap, windowSize, ImVec2(0, 1), ImVec2(1, 0));
+	ImGui::EndChild();
+
 	ImGui::End();
 
 	ImGui::Render();
