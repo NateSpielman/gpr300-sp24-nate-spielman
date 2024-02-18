@@ -50,6 +50,9 @@ struct Light {
 	glm::vec3 ambientColor = glm::vec3(0.3, 0.4, 0.46);
 }light;
 
+float minBias = 0.005f;
+float maxBias = 0.015f;
+
 int main() {
 	GLFWwindow* window = initWindow("Assignment 2", screenWidth, screenHeight);
 	glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
@@ -76,7 +79,7 @@ int main() {
 	shadowCamera.orthographic = true;
 	shadowCamera.orthoHeight = 15.0f;
 	shadowCamera.nearPlane = 0.01f;
-	shadowCamera.farPlane = 20.0f;
+	shadowCamera.farPlane = 30.0f;
 	shadowCamera.aspectRatio = 1.0f;
 
 	//Create Framebuffer and shadow map
@@ -99,13 +102,15 @@ int main() {
 
 		//RENDER
 		//Shadow Map
+		glCullFace(GL_FRONT);
 		glBindFramebuffer(GL_FRAMEBUFFER, shadowMap.fbo);
 		glViewport(0, 0, shadowMapWidth, shadowMapHeight);
 		glClear(GL_DEPTH_BUFFER_BIT);
-
+		
 		shadowCamera.position = (shadowCamera.target - glm::normalize(light.lightDirection)) * 5.0f;
 		depthOnlyShader.use();
 		depthOnlyShader.setMat4("_ViewProjection", shadowCamera.projectionMatrix() * shadowCamera.viewMatrix());
+		glCullFace(GL_BACK);
 		depthOnlyShader.setMat4("_Model", monkeyTransform.modelMatrix());
 		monkeyModel.draw();
 		depthOnlyShader.setMat4("_Model", planeTransform.modelMatrix());
@@ -138,6 +143,8 @@ int main() {
 		shader.setVec3("_Light.LightDirection", light.lightDirection);
 		shader.setVec3("_Light.LightColor", light.lightColor);
 		shader.setVec3("_Light.AmbientColor", light.ambientColor);
+		shader.setFloat("_MinBias", minBias);
+		shader.setFloat("_MaxBias", maxBias);
 		//Material 
 		shader.setFloat("_Material.Ka", material.Ka);
 		shader.setFloat("_Material.Kd", material.Kd);
@@ -183,6 +190,11 @@ void drawUI() {
 		ImGui::SliderFloat("DiffuseK", &material.Kd, 0.0f, 1.0f);
 		ImGui::SliderFloat("SpecularK", &material.Ks, 0.0f, 1.0f);
 		ImGui::SliderFloat("Shininess", &material.Shininess, 2.0f, 1024.0f);
+	}
+	if (ImGui::CollapsingHeader("Light")) {
+		ImGui::SliderFloat3("Direction", &light.lightDirection.x, -1.0f, 1.0f);
+		ImGui::SliderFloat("Min Bias", &minBias, 0.001f, 0.05f);
+		ImGui::SliderFloat("Max Bias", &maxBias, 0.001f, 0.05f);
 	}
 	ImGui::End();
 
