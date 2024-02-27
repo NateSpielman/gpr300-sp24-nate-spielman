@@ -62,7 +62,7 @@ int main() {
 	GLuint rockTexture = ew::loadTexture("assets/Rock_Color.jpg");
 	ew::Shader shader = ew::Shader("assets/lit.vert", "assets/lit.frag");
 	ew::Shader postProcessShader = ew::Shader("assets/postProcess.vert", "assets/postProcess.frag");
-	ew::Shader geometryShader = ew::Shader("assets/lit.vert", "assets/geometryPass.frag");
+	ew::Shader geometryShader = ew::Shader("assets/geometryPass.vert", "assets/geometryPass.frag");
 	ew::Shader depthOnlyShader = ew::Shader("assets/depthOnly.vert", "assets/depthOnly.frag");
 	ew::Model monkeyModel = ew::Model("assets/suzanne.obj");
 	ew::Transform monkeyTransform;
@@ -110,11 +110,16 @@ int main() {
 		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+		//Bind rock texture before geometry shader
+		glBindTextureUnit(0, rockTexture);
+
 		geometryShader.use();
-		geometryShader.setMat4("_Model", monkeyTransform.modelMatrix());
-		geometryShader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
-		geometryShader.setMat4("_LightViewProj", shadowCamera.projectionMatrix() * shadowCamera.viewMatrix());
 		geometryShader.setInt("_MainTex", 0);
+		geometryShader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
+		geometryShader.setMat4("_Model", monkeyTransform.modelMatrix());
+		monkeyModel.draw();
+		geometryShader.setMat4("_Model", planeTransform.modelMatrix());
+		planeMesh.draw();
 		
 		//Shadow Map
 		glCullFace(GL_FRONT);
@@ -140,8 +145,7 @@ int main() {
 		//Camera Controller
 		cameraController.move(window, &camera, deltaTime);
 
-		//Bind textures to texture units
-		glBindTextureUnit(0, rockTexture);
+		//Bind texture
 		glBindTextureUnit(1, shadowMap.depthMap);
 
 		shader.use();
@@ -210,12 +214,13 @@ void drawUI() {
 	}
 	ImGui::End();
 
+	/*
 	ImGui::Begin("Shadow Map");
 	ImGui::BeginChild("Shadow Map");
 	ImVec2 windowSize = ImGui::GetWindowSize();
 	ImGui::Image((ImTextureID)shadowMap.depthMap, windowSize, ImVec2(0, 1), ImVec2(1, 0));
 	ImGui::EndChild();
-	ImGui::End();
+	ImGui::End();*/
 
 	ImGui::Begin("GBuffers");
 	ImVec2 texSize = ImVec2(gBuffer.width / 4, gBuffer.height / 4);
