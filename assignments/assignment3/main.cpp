@@ -144,7 +144,7 @@ int main() {
 		glViewport(0, 0, framebuffer.width, framebuffer.height);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		deferredShader.use();
-		//Set the lighting uniforms for deferredShader.
+		//Set the lighting uniforms for deferredShader
 		deferredShader.setVec3("_EyePos", camera.position);
 		deferredShader.setVec3("_Light.LightDirection", light.lightDirection);
 		deferredShader.setVec3("_Light.LightColor", light.lightColor);
@@ -171,8 +171,8 @@ int main() {
 
 		//Camera Controller
 		cameraController.move(window, &camera, deltaTime);
-		
-		//glBindTextureUnit(0, rockTexture);
+
+		glBindTextureUnit(0, rockTexture);
 
 		shader.use();
 		shader.setInt("_MainTex", 0); //Make "_MainTex" sampler2D sample from the 2D texture bound to unit 0
@@ -180,7 +180,7 @@ int main() {
 		shader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
 		shader.setVec3("_EyePos", camera.position);
 		shader.setMat4("_LightViewProj", shadowCamera.projectionMatrix() * shadowCamera.viewMatrix());
-		shader.setInt("_ShadowMap", 1);
+		shader.setInt("_ShadowMap", 3);
 		//Light
 		shader.setVec3("_Light.LightDirection", light.lightDirection);
 		shader.setVec3("_Light.LightColor", light.lightColor);
@@ -240,13 +240,12 @@ void drawUI() {
 	}
 	ImGui::End();
 
-	/*
 	ImGui::Begin("Shadow Map");
 	ImGui::BeginChild("Shadow Map");
 	ImVec2 windowSize = ImGui::GetWindowSize();
 	ImGui::Image((ImTextureID)shadowMap.depthMap, windowSize, ImVec2(0, 1), ImVec2(1, 0));
 	ImGui::EndChild();
-	ImGui::End();*/
+	ImGui::End();
 
 	ImGui::Begin("GBuffers");
 	ImVec2 texSize = ImVec2(gBuffer.width / 4, gBuffer.height / 4);
