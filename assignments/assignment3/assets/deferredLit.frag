@@ -25,6 +25,23 @@ uniform layout(binding = 0) sampler2D _gPositions;
 uniform layout(binding = 1) sampler2D _gNormals;
 uniform layout(binding = 2) sampler2D _gAlbedo;
 
+uniform vec3 _EyePos;
+
+vec3 calculateLighting(vec3 worldNormal, vec3 worldPos, vec3 albedo) {
+    vec3 normal = normalize(worldNormal);
+	vec3 toLight = -_Light.LightDirection;
+	float diffuseFactor = max(dot(normal,toLight),0.0);
+	vec3 toEye = normalize(_EyePos - worldPos);
+	//Blinn-phong uses half angle
+	vec3 h = normalize(toLight + toEye);
+	float specularFactor = pow(max(dot(normal,h),0.0),_Material.Shininess);
+	//Combination of specular and diffuse reflection
+	vec3 lightColor = (_Material.Kd * diffuseFactor + _Material.Ks * specularFactor) * _Light.LightColor;
+	lightColor+=_Light.AmbientColor * _Material.Ka;
+
+	return lightColor;
+}
+
 void main(){
 	//Sample surface properties for this screen pixel
 	vec3 normal = texture(_gNormals,UV).xyz;

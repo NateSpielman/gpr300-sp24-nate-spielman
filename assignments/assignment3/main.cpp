@@ -63,7 +63,9 @@ int main() {
 	ew::Shader shader = ew::Shader("assets/lit.vert", "assets/lit.frag");
 	ew::Shader postProcessShader = ew::Shader("assets/postProcess.vert", "assets/postProcess.frag");
 	ew::Shader geometryShader = ew::Shader("assets/geometryPass.vert", "assets/geometryPass.frag");
+	ew::Shader deferredShader = ew::Shader("assets/deferredLit.vert", "assets/deferredLit.frag");
 	ew::Shader depthOnlyShader = ew::Shader("assets/depthOnly.vert", "assets/depthOnly.frag");
+
 	ew::Model monkeyModel = ew::Model("assets/suzanne.obj");
 	ew::Transform monkeyTransform;
 
@@ -105,6 +107,22 @@ int main() {
 		prevFrameTime = time;
 
 		//RENDER
+		//Shadow Map
+		glCullFace(GL_FRONT);
+		glBindFramebuffer(GL_FRAMEBUFFER, shadowMap.fbo);
+		glViewport(0, 0, shadowMapWidth, shadowMapHeight);
+		glClear(GL_DEPTH_BUFFER_BIT);
+
+		shadowCamera.position = (shadowCamera.target - glm::normalize(light.lightDirection)) * 5.0f;
+		depthOnlyShader.use();
+		depthOnlyShader.setMat4("_ViewProjection", shadowCamera.projectionMatrix() * shadowCamera.viewMatrix());
+		glCullFace(GL_BACK);
+		depthOnlyShader.setMat4("_Model", monkeyTransform.modelMatrix());
+		monkeyModel.draw();
+		depthOnlyShader.setMat4("_Model", planeTransform.modelMatrix());
+		planeMesh.draw();
+
+		//Geometry pass
 		glBindFramebuffer(GL_FRAMEBUFFER, gBuffer.fbo);
 		glViewport(0, 0, gBuffer.width, gBuffer.height);
 		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -120,21 +138,30 @@ int main() {
 		monkeyModel.draw();
 		geometryShader.setMat4("_Model", planeTransform.modelMatrix());
 		planeMesh.draw();
-		
-		//Shadow Map
-		glCullFace(GL_FRONT);
-		glBindFramebuffer(GL_FRAMEBUFFER, shadowMap.fbo);
-		glViewport(0, 0, shadowMapWidth, shadowMapHeight);
-		glClear(GL_DEPTH_BUFFER_BIT);
-		
-		shadowCamera.position = (shadowCamera.target - glm::normalize(light.lightDirection)) * 5.0f;
-		depthOnlyShader.use();
-		depthOnlyShader.setMat4("_ViewProjection", shadowCamera.projectionMatrix() * shadowCamera.viewMatrix());
-		glCullFace(GL_BACK);
-		depthOnlyShader.setMat4("_Model", monkeyTransform.modelMatrix());
-		monkeyModel.draw();
-		depthOnlyShader.setMat4("_Model", planeTransform.modelMatrix());
-		planeMesh.draw();
+
+		//LIGHTING PASS
+		glBindFramebuffer(GL_FRAMEBUFFER, framebuffer.fbo);
+		glViewport(0, 0, framebuffer.width, framebuffer.height);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		deferredShader.use();
+		//Set the lighting uniforms for deferredShader.
+		deferredShader.setVec3("_EyePos", camera.position);
+		deferredShader.setVec3("_Light.LightDirection", light.lightDirection);
+		deferredShader.setVec3("_Light.LightColor", light.lightColor);
+		deferredShader.setVec3("_Light.AmbientColor", light.ambientColor);
+		deferredShader.setFloat("_Material.Ka", material.Ka);
+		deferredShader.setFloat("_Material.Kd", material.Kd);
+		deferredShader.setFloat("_Material.Ks", material.Ks);
+		deferredShader.setFloat("_Material.Shininess", material.Shininess);
+
+		//Bind g-buffer textures
+		glBindTextureUnit(0, gBuffer.colorBuffer[0]);
+		glBindTextureUnit(1, gBuffer.colorBuffer[1]);
+		glBindTextureUnit(2, gBuffer.colorBuffer[2]);
+		glBindTextureUnit(3, shadowMap.depthMap); //For shadow mapping
+
+		glBindVertexArray(dummyVAO);
+		glDrawArrays(GL_TRIANGLES, 0, 3);
 
 		//Offscreen Framebuffer
 		glBindFramebuffer(GL_FRAMEBUFFER, framebuffer.fbo);
@@ -144,9 +171,8 @@ int main() {
 
 		//Camera Controller
 		cameraController.move(window, &camera, deltaTime);
-
-		//Bind texture
-		glBindTextureUnit(1, shadowMap.depthMap);
+		
+		//glBindTextureUnit(0, rockTexture);
 
 		shader.use();
 		shader.setInt("_MainTex", 0); //Make "_MainTex" sampler2D sample from the 2D texture bound to unit 0
