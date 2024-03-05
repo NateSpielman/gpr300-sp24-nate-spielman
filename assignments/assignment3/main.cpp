@@ -60,7 +60,6 @@ int main() {
 	glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
 
 	GLuint rockTexture = ew::loadTexture("assets/Rock_Color.jpg");
-	ew::Shader shader = ew::Shader("assets/lit.vert", "assets/lit.frag");
 	ew::Shader postProcessShader = ew::Shader("assets/postProcess.vert", "assets/postProcess.frag");
 	ew::Shader geometryShader = ew::Shader("assets/geometryPass.vert", "assets/geometryPass.frag");
 	ew::Shader deferredShader = ew::Shader("assets/deferredLit.vert", "assets/deferredLit.frag");
@@ -146,6 +145,7 @@ int main() {
 		deferredShader.use();
 		//Set the lighting uniforms for deferredShader
 		deferredShader.setVec3("_EyePos", camera.position);
+		deferredShader.setMat4("_LightViewProj", shadowCamera.projectionMatrix() * shadowCamera.viewMatrix());
 		deferredShader.setVec3("_Light.LightDirection", light.lightDirection);
 		deferredShader.setVec3("_Light.LightColor", light.lightColor);
 		deferredShader.setVec3("_Light.AmbientColor", light.ambientColor);
@@ -153,6 +153,9 @@ int main() {
 		deferredShader.setFloat("_Material.Kd", material.Kd);
 		deferredShader.setFloat("_Material.Ks", material.Ks);
 		deferredShader.setFloat("_Material.Shininess", material.Shininess);
+		deferredShader.setFloat("_MinBias", minBias);
+		deferredShader.setFloat("_MaxBias", maxBias);
+		deferredShader.setInt("_ShadowMap", 3);
 
 		//Bind g-buffer textures
 		glBindTextureUnit(0, gBuffer.colorBuffer[0]);
@@ -163,40 +166,8 @@ int main() {
 		glBindVertexArray(dummyVAO);
 		glDrawArrays(GL_TRIANGLES, 0, 3);
 
-		//Offscreen Framebuffer
-		glBindFramebuffer(GL_FRAMEBUFFER, framebuffer.fbo);
-		glViewport(0, 0, screenWidth, screenHeight);
-		glClearColor(0.6f,0.8f,0.92f,1.0f);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-		//Camera Controller
 		cameraController.move(window, &camera, deltaTime);
-
-		glBindTextureUnit(0, rockTexture);
-
-		shader.use();
-		shader.setInt("_MainTex", 0); //Make "_MainTex" sampler2D sample from the 2D texture bound to unit 0
-		shader.setMat4("_Model", monkeyTransform.modelMatrix());
-		shader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
-		shader.setVec3("_EyePos", camera.position);
-		shader.setMat4("_LightViewProj", shadowCamera.projectionMatrix() * shadowCamera.viewMatrix());
-		shader.setInt("_ShadowMap", 3);
-		//Light
-		shader.setVec3("_Light.LightDirection", light.lightDirection);
-		shader.setVec3("_Light.LightColor", light.lightColor);
-		shader.setVec3("_Light.AmbientColor", light.ambientColor);
-		shader.setFloat("_MinBias", minBias);
-		shader.setFloat("_MaxBias", maxBias);
-		//Material 
-		shader.setFloat("_Material.Ka", material.Ka);
-		shader.setFloat("_Material.Kd", material.Kd);
-		shader.setFloat("_Material.Ks", material.Ks);
-		shader.setFloat("_Material.Shininess", material.Shininess);
-		monkeyModel.draw(); //Draws the monkey model using current shader
-
-		shader.setMat4("_Model", planeTransform.modelMatrix());
-		planeMesh.draw();
-
+		
 		//Scene
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
