@@ -11,6 +11,14 @@ struct Light{
 };
 uniform Light _Light;
 
+struct PointLight{
+	vec3 position;
+	float radius;
+	vec4 color;
+};
+#define MAX_POINT_LIGHTS 64
+uniform PointLight _PointLights[MAX_POINT_LIGHTS];
+
 struct Material{
 	float Ka; //Ambient coefficient (0-1)
 	float Kd; //Diffuse coefficient (0-1)
@@ -31,7 +39,7 @@ uniform float _MinBias;
 uniform float _MaxBias;
 uniform sampler2D _ShadowMap;
 
-float calculateShadow(sampler2D shadowMap, vec4 lightSpacePos, float bias){
+float calcShadow(sampler2D shadowMap, vec4 lightSpacePos, float bias){
 	//Homogeneous Clip space to NDC [-w,w] to [-1,1]
     vec3 sampleCoord = lightSpacePos.xyz / lightSpacePos.w;
     //Convert from [-1,1] to [0,1]
@@ -58,7 +66,7 @@ float calculateShadow(sampler2D shadowMap, vec4 lightSpacePos, float bias){
 	return totalShadow;
 }
 
-vec3 calculateLighting(vec3 worldNormal, vec3 worldPos, vec3 albedo) {
+vec3 calcDirectionalLight(vec3 worldNormal, vec3 worldPos) {
     vec3 normal = normalize(worldNormal);
 	vec3 toLight = -_Light.LightDirection;
 	float diffuseFactor = max(dot(normal,toLight),0.0);
@@ -75,10 +83,37 @@ vec3 calculateLighting(vec3 worldNormal, vec3 worldPos, vec3 albedo) {
 
 	//shadow
 	float bias = max(_MaxBias * (1.0 - dot(normal,toLight)),_MinBias);
-	float shadow = calculateShadow(_ShadowMap, LightSpacePos, bias);
+	float shadow = calcShadow(_ShadowMap, LightSpacePos, bias);
 	lightColor *= 1.0 - shadow;
 
 	lightColor+=_Light.AmbientColor * _Material.Ka;
+	return lightColor;
+}
+
+//Linear falloff
+float attenuateLinear(float dist, float radius){
+	return clamp(((radius-dist)/radius), 0.0, 1.0);
+}
+
+//Exponential falloff
+float attenuateExponential(float dist, float radius){
+	float i = clamp(1.0 - pow(dist/radius,4.0),0.0,1.0);
+	return i * i;
+}
+
+vec3 calcPointLight(PointLight light, vec3 normal, vec3 worldPos){
+	vec3 diff = light.position - worldPos;
+	//Direction toward light position
+	vec3 toLight = normalize(diff);
+	vec3 toEye = normalize(_EyePos - worldPos);
+	//Usual blinn-phong calculations for diffuse + specular
+	float diffuseFactor = max(dot(normal,toLight),0.0);
+	vec3 h = normalize(toLight + toEye);
+	float specularFactor = pow(max(dot(normal,h),0.0),_Material.Shininess);
+	vec3 lightColor = (diffuseFactor + specularFactor) * vec3(light.color);
+	//Attenuation
+	float d = length(diff); //Distance to light
+	lightColor*=attenuateLinear(d,light.radius);
 	return lightColor;
 }
 
@@ -88,7 +123,11 @@ void main(){
 	vec3 worldPos = texture(_gPositions,UV).xyz;
 	vec3 albedo = texture(_gAlbedo,UV).xyz;
 
-	//Worldspace lighting calculations, same as in forward shading
-	vec3 lightColor = calculateLighting(normal,worldPos,albedo);
-	FragColor = vec4(albedo * lightColor,1.0);
+	vec3 totalLight = vec3(0);
+	totalLight+=calcDirectionalLight(normal, worldPos);
+	for(int i=0;i<MAX_POINT_LIGHTS;i++){
+		totalLight+=calcPointLight(_PointLights[i],normal, worldPos);
+	}
+	
+	FragColor = vec4(albedo * totalLight,1.0);
 }

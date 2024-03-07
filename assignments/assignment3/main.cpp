@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <math.h>
+#include <time.h>
 
 #include <ew/external/glad.h>
 #include <ew/shader.h>
@@ -52,6 +53,16 @@ struct Light {
 	glm::vec3 ambientColor = glm::vec3(0.3, 0.4, 0.46);
 }light;
 
+struct PointLight {
+	glm::vec3 position;
+	float radius;
+	glm::vec4 color;
+};
+const int MAX_POINT_LIGHTS = 64;
+PointLight pointLights[MAX_POINT_LIGHTS];
+
+glm::vec3 positions[MAX_POINT_LIGHTS];
+
 float minBias = 0.005f;
 float maxBias = 0.015f;
 
@@ -64,6 +75,7 @@ int main() {
 	ew::Shader geometryShader = ew::Shader("assets/geometryPass.vert", "assets/geometryPass.frag");
 	ew::Shader deferredShader = ew::Shader("assets/deferredLit.vert", "assets/deferredLit.frag");
 	ew::Shader depthOnlyShader = ew::Shader("assets/depthOnly.vert", "assets/depthOnly.frag");
+	ew::Shader lightOrbShader = ew::Shader("assets/lightOrb.vert", "assets/lightOrb.frag");
 
 	ew::Model monkeyModel = ew::Model("assets/suzanne.obj");
 	ew::Transform monkeyTransform;
@@ -71,6 +83,9 @@ int main() {
 	ew::Mesh planeMesh = ew::Mesh(ew::createPlane(10, 10, 5));
 	ew::Transform planeTransform;
 	planeTransform.position = glm::vec3(0.0f, -2.0f, 0.0f);
+
+	ew::Mesh sphereMesh = ew::Mesh(ew::createSphere(1.0f, 8));
+	ew::Transform sphereTransform;
 	
 	//Main Camera
 	camera.position = glm::vec3(0.0f, 0.0f, 5.0f);
@@ -86,8 +101,27 @@ int main() {
 	shadowCamera.farPlane = 30.0f;
 	shadowCamera.aspectRatio = 1.0f;
 
+	//Point Light
+	int n = 0;
+	for (int i = 0; i < 8; i++) {
+		for (int j = 0; j < 8; j++) {
+			positions[n] = glm::vec3((float)i, 0.0, (float)j);
+			n++;
+		}
+	}
+	for (int i = 0; i < MAX_POINT_LIGHTS; i++)
+	{
+		float r = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
+		float g = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
+		float b = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
+
+		pointLights[i].position = positions[i];
+		pointLights[i].radius = 3;
+		pointLights[i].color = glm::vec4(r, g, b, 1.0f);
+	}
+
 	//Create Framebuffers and shadow map
-	ns::Framebuffer framebuffer = ns::createFramebuffer(screenWidth, screenHeight, GL_RGB);
+	ns::Framebuffer framebuffer = ns::createFramebuffer(screenWidth, screenHeight, GL_RGB16F);
 	gBuffer = ns::createGBuffer(screenWidth, screenHeight);
 	shadowMap = ns::createShadowMap(shadowMapWidth, shadowMapHeight);
 
@@ -156,6 +190,14 @@ int main() {
 		deferredShader.setFloat("_MinBias", minBias);
 		deferredShader.setFloat("_MaxBias", maxBias);
 		deferredShader.setInt("_ShadowMap", 3);
+		//Set shader uniforms
+		for (int i = 0; i < MAX_POINT_LIGHTS; i++) {
+			//Creates prefix "_PointLights[0]." etc
+			std::string prefix = "_PointLights[" + std::to_string(i) + "].";
+			deferredShader.setVec3(prefix + "position", pointLights[i].position);
+			deferredShader.setFloat(prefix + "radius", pointLights[i].radius);
+			deferredShader.setVec4(prefix + "color", pointLights[i].color);
+		}
 
 		//Bind g-buffer textures
 		glBindTextureUnit(0, gBuffer.colorBuffer[0]);
@@ -166,12 +208,32 @@ int main() {
 		glBindVertexArray(dummyVAO);
 		glDrawArrays(GL_TRIANGLES, 0, 3);
 
-		cameraController.move(window, &camera, deltaTime);
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, gBuffer.fbo); //Read from gBuffer 
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, framebuffer.fbo); //Write to current fbo
+		glBlitFramebuffer(0, 0, screenWidth, screenHeight, 0, 0, screenWidth, screenHeight, GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+
+		//Draw all light orbs
+		lightOrbShader.use();
+		lightOrbShader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
+		for (int i = 0; i < MAX_POINT_LIGHTS; i++)
+		{
+			glm::mat4 m = glm::mat4(1.0f);
+			m = glm::translate(m, pointLights[i].position);
+			m = glm::scale(m, glm::vec3(0.1f)); //Whatever radius you want
+
+			lightOrbShader.setMat4("_Model", m);
+			lightOrbShader.setVec3("_Color", pointLights[i].color);
+			sphereMesh.draw();
+		}
 		
 		//Scene
+		cameraController.move(window, &camera, deltaTime);
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		glViewport(0, 0, framebuffer.width, framebuffer.height);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
 		postProcessShader.use();
+
 		glBindTextureUnit(0, framebuffer.colorBuffer[0]);
 		glBindVertexArray(dummyVAO);
 		glDrawArrays(GL_TRIANGLES, 0, 3);

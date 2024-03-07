@@ -66,7 +66,7 @@ namespace ns {
 		};
 		glDrawBuffers(3, drawBuffers);
 
-		//TODO: Add texture2D depth buffer
+		//Add texture2D depth buffer
 		glGenTextures(1, &gBuffer.depthBuffer);
 		glBindTexture(GL_TEXTURE_2D, gBuffer.depthBuffer);
 		//16 bit depth values, 2k resolution
