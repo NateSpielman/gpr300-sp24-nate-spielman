@@ -172,6 +172,20 @@ int main() {
 		geometryShader.setMat4("_Model", planeTransform.modelMatrix());
 		planeMesh.draw();
 
+		//Draw all light orbs
+		lightOrbShader.use();
+		lightOrbShader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
+		for (int i = 0; i < MAX_POINT_LIGHTS; i++)
+		{
+			glm::mat4 m = glm::mat4(1.0f);
+			m = glm::translate(m, pointLights[i].position);
+			m = glm::scale(m, glm::vec3(0.1f)); //Whatever radius you want
+
+			lightOrbShader.setMat4("_Model", m);
+			lightOrbShader.setVec3("_Color", pointLights[i].color);
+			sphereMesh.draw();
+		}
+
 		//LIGHTING PASS
 		glBindFramebuffer(GL_FRAMEBUFFER, framebuffer.fbo);
 		glViewport(0, 0, framebuffer.width, framebuffer.height);
@@ -211,20 +225,6 @@ int main() {
 		glBindFramebuffer(GL_READ_FRAMEBUFFER, gBuffer.fbo); //Read from gBuffer 
 		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, framebuffer.fbo); //Write to current fbo
 		glBlitFramebuffer(0, 0, screenWidth, screenHeight, 0, 0, screenWidth, screenHeight, GL_DEPTH_BUFFER_BIT, GL_NEAREST);
-
-		//Draw all light orbs
-		lightOrbShader.use();
-		lightOrbShader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
-		for (int i = 0; i < MAX_POINT_LIGHTS; i++)
-		{
-			glm::mat4 m = glm::mat4(1.0f);
-			m = glm::translate(m, pointLights[i].position);
-			m = glm::scale(m, glm::vec3(0.1f)); //Whatever radius you want
-
-			lightOrbShader.setMat4("_Model", m);
-			lightOrbShader.setVec3("_Color", pointLights[i].color);
-			sphereMesh.draw();
-		}
 		
 		//Scene
 		cameraController.move(window, &camera, deltaTime);
