@@ -11,6 +11,8 @@
 #include <ew/procGen.h>
 #include <ns/framebuffer.h>
 #include <ns/shadowMap.h>
+#include <ns/node.h>
+#include <ns/hierarchy.h>
 
 #include <GLFW/glfw3.h>
 #include <imgui.h>
@@ -53,6 +55,14 @@ struct Light {
 float minBias = 0.005f;
 float maxBias = 0.015f;
 
+//Nodes
+void SolveFK(ns::Hierarchy hierarchy);
+void InitNodes();
+void DrawNodes(ns::Hierarchy hierarchy, ew::Shader currentShader, ew::Model model);
+void AnimNodes(ns::Hierarchy hierarchy);
+const int NODECOUNT = 8;
+ns::Node skeletonNodes[NODECOUNT];
+
 int main() {
 	GLFWwindow* window = initWindow("Assignment 5", screenWidth, screenHeight);
 	glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
@@ -67,6 +77,13 @@ int main() {
 	ew::Mesh planeMesh = ew::Mesh(ew::createPlane(10, 10, 5));
 	ew::Transform planeTransform;
 	planeTransform.position = glm::vec3(0.0f, -2.0f, 0.0f);
+
+	//Nodes
+	InitNodes();
+	//Hierarchy
+	ns::Hierarchy hierarchy;
+	hierarchy.nodes = skeletonNodes;
+	hierarchy.nodeCount = NODECOUNT;
 	
 	//Main Camera
 	camera.position = glm::vec3(0.0f, 0.0f, 5.0f);
@@ -111,8 +128,8 @@ int main() {
 		depthOnlyShader.use();
 		depthOnlyShader.setMat4("_ViewProjection", shadowCamera.projectionMatrix() * shadowCamera.viewMatrix());
 		glCullFace(GL_BACK);
-		depthOnlyShader.setMat4("_Model", monkeyTransform.modelMatrix());
-		monkeyModel.draw();
+		//Nodes
+		DrawNodes(hierarchy, depthOnlyShader, monkeyModel);
 		depthOnlyShader.setMat4("_Model", planeTransform.modelMatrix());
 		planeMesh.draw();
 
@@ -126,7 +143,7 @@ int main() {
 		cameraController.move(window, &camera, deltaTime);
 
 		//Rotate model around Y axis
-		monkeyTransform.rotation = glm::rotate(monkeyTransform.rotation, deltaTime, glm::vec3(0.0, 1.0, 0.0));
+		//monkeyTransform.rotation = glm::rotate(monkeyTransform.rotation, deltaTime, glm::vec3(0.0, 1.0, 0.0));
 
 		//Bind textures to texture units
 		glBindTextureUnit(0, rockTexture);
@@ -150,10 +167,15 @@ int main() {
 		shader.setFloat("_Material.Kd", material.Kd);
 		shader.setFloat("_Material.Ks", material.Ks);
 		shader.setFloat("_Material.Shininess", material.Shininess);
-		monkeyModel.draw(); //Draws the monkey model using current shader
+		//monkeyModel.draw(); //Draws the monkey model using current shader
 
 		shader.setMat4("_Model", planeTransform.modelMatrix());
 		planeMesh.draw();
+
+		//draw nodes
+		AnimNodes(hierarchy);
+		SolveFK(hierarchy);
+		DrawNodes(hierarchy, shader, monkeyModel);
 
 		//Scene
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -176,6 +198,60 @@ void resetCamera(ew::Camera* camera, ew::CameraController* controller) {
 	controller->yaw = controller->pitch = 0;
 }
 
+void SolveFK(ns::Hierarchy hierarchy) {
+	for (int i = 0; i < hierarchy.nodeCount; i++)
+	{
+		if (hierarchy.nodes[i].parentIndex == -1)
+		{
+			hierarchy.nodes[i].globalTransform = hierarchy.nodes[i].localTransform();
+		}
+		else {
+			hierarchy.nodes[i].globalTransform = hierarchy.nodes[hierarchy.nodes[i].parentIndex].globalTransform * hierarchy.nodes[i].localTransform();
+		}
+	}
+}
+
+void InitNodes() {
+	//Torso
+	skeletonNodes[0] = ns::createNode(glm::vec3(0.0f, 0.0f, 0.0f), glm::quat(1.0f, 0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f), -1);
+
+	//Shoulder L
+	skeletonNodes[1] = ns::createNode(glm::vec3(1.5f, 0.0f, 0.0f), glm::quat(0.75f, 0.0f, 0.75f, 0.0f), glm::vec3(0.5f, 0.5f, 0.5f), 0);
+	//Elbow L
+	skeletonNodes[2] = ns::createNode(glm::vec3(0.0f, 0.0f, 2.0f), glm::quat(1.0f, 0.0f, 0.0f, 0.0f), glm::vec3(0.4f, 0.4f, 0.4f), 1);
+	//Wrist L
+	skeletonNodes[3] = ns::createNode(glm::vec3(0.0f, -5.0f, 0.0f), glm::quat(1.0f, 0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f), 2);
+
+	//Shoulder R
+	skeletonNodes[4] = ns::createNode(glm::vec3(-1.5f, 0.0f, 0.0f), glm::quat(0.75f, 0.0f, -0.75f, 0.0f), glm::vec3(0.5f, 0.5f, 0.5f), 0);
+	//Elbow R
+	skeletonNodes[5] = ns::createNode(glm::vec3(0.0f, 0.0f, 2.0f), glm::quat(1.0f, 0.0f, 0.0f, 0.0f), glm::vec3(0.4f, 0.4f, 0.4f), 4);
+	//Wrist R
+	skeletonNodes[6] = ns::createNode(glm::vec3(0.0f, -5.0f, 0.0f), glm::quat(1.0f, 0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f), 5);
+
+	//Head
+	skeletonNodes[7] = ns::createNode(glm::vec3(0.0f, 1.5f, 0.0f), glm::quat(1.0f, 0.0f, 0.0f, 0.0f), glm::vec3(0.7f, 0.7f, 0.7f), 0);
+}
+
+void DrawNodes(ns::Hierarchy hierarchy, ew::Shader currentShader, ew::Model model) {
+	for (int i = 0; i < hierarchy.nodeCount; i++)
+	{
+		currentShader.setMat4("_Model", hierarchy.nodes[i].globalTransform);
+		model.draw();
+	}
+}
+
+void AnimNodes(ns::Hierarchy hierarchy) {
+	//Torso
+	hierarchy.nodes[0].rotation = glm::rotate(hierarchy.nodes[0].rotation, deltaTime, glm::vec3(0.0, -1.0, 0.0));
+	hierarchy.nodes[0].position = hierarchy.nodes[0].rotation * glm::vec3(2.0f, 0.0f, 0.0f);
+
+	//Shoulder L
+	hierarchy.nodes[1].rotation = glm::rotate(hierarchy.nodes[1].rotation, deltaTime, glm::vec3(0.0, 0.0, -0.2));
+	//Shoulder R
+	hierarchy.nodes[4].rotation = glm::rotate(hierarchy.nodes[4].rotation, deltaTime, glm::vec3(0.0, 0.0, 0.2));
+}
+
 void drawUI() {
 	ImGui_ImplGlfw_NewFrame();
 	ImGui_ImplOpenGL3_NewFrame();
@@ -196,13 +272,6 @@ void drawUI() {
 		ImGui::SliderFloat("Min Bias", &minBias, 0.001f, 0.05f);
 		ImGui::SliderFloat("Max Bias", &maxBias, 0.001f, 0.05f);
 	}
-	ImGui::End();
-
-	ImGui::Begin("Shadow Map");
-	ImGui::BeginChild("Shadow Map");
-	ImVec2 windowSize = ImGui::GetWindowSize();
-	ImGui::Image((ImTextureID)shadowMap.depthMap, windowSize, ImVec2(0, 1), ImVec2(1, 0));
-	ImGui::EndChild();
 	ImGui::End();
 
 	ImGui::Render();
