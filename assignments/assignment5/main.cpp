@@ -248,8 +248,12 @@ void AnimNodes(ns::Hierarchy hierarchy) {
 
 	//Shoulder L
 	hierarchy.nodes[1].rotation = glm::rotate(hierarchy.nodes[1].rotation, deltaTime, glm::vec3(0.0, 0.0, -0.2));
+
 	//Shoulder R
 	hierarchy.nodes[4].rotation = glm::rotate(hierarchy.nodes[4].rotation, deltaTime, glm::vec3(0.0, 0.0, 0.2));
+
+	//Head
+	hierarchy.nodes[7].position.y = glm::mix(1.6f, 2.0f, sin((float)glfwGetTime() * 3.0f));
 }
 
 void drawUI() {
@@ -260,17 +264,6 @@ void drawUI() {
 	ImGui::Begin("Settings");
 	if (ImGui::Button("Reset Camera")) {
 		resetCamera(&camera, &cameraController);
-	}
-	if (ImGui::CollapsingHeader("Material")) {
-		ImGui::SliderFloat("AmbientK", &material.Ka, 0.0f, 1.0f);
-		ImGui::SliderFloat("DiffuseK", &material.Kd, 0.0f, 1.0f);
-		ImGui::SliderFloat("SpecularK", &material.Ks, 0.0f, 1.0f);
-		ImGui::SliderFloat("Shininess", &material.Shininess, 2.0f, 1024.0f);
-	}
-	if (ImGui::CollapsingHeader("Light")) {
-		ImGui::SliderFloat3("Direction", &light.lightDirection.x, -1.0f, 1.0f);
-		ImGui::SliderFloat("Min Bias", &minBias, 0.001f, 0.05f);
-		ImGui::SliderFloat("Max Bias", &maxBias, 0.001f, 0.05f);
 	}
 	ImGui::End();
 
